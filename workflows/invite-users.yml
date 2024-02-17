@@ -1,0 +1,51 @@
+name: Invite Users to Azure Tenant
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  invite-users:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Set up Azure PowerShell
+      uses: azure/setup-powershell@v1
+      with:
+        azPsVersion: '3.0.0'
+
+    - name: Run PowerShell script
+      run: |
+        # Define Azure AD credentials
+        $clientId = $env:AZURE_CLIENT_ID
+        $clientSecret = $env:AZURE_CLIENT_SECRET
+        $tenantId = $env:AZURE_TENANT_ID
+
+        # Authenticate with Azure AD
+        $azureCredential = Get-AzCredential -ServicePrincipal -TenantId $tenantId -ApplicationId $clientId -Secret $clientSecret
+        Connect-AzAccount -Credential $azureCredential -ServicePrincipal -TenantId $tenantId -ApplicationId $clientId
+
+        # Read user list from CSV file
+        $userList = Import-Csv -Path $env:USER_LIST_PATH
+
+        # Loop through users and send invitations
+        foreach ($user in $userList) {
+          $inviteeEmail = $user.Email
+          $inviteRedirectUrl = "https://yourapp.com"  # Replace with your application URL
+
+          # Create the invitation
+          $invitation = New-AzureADMSInvitation -InvitedUserEmailAddress $inviteeEmail -InviteRedirectUrl $inviteRedirectUrl
+
+          Write-Output "Invitation created for user $($invitation.InvitedUserEmailAddress)"
+          Write-Output "Invitation Id: $($invitation.InvitationId)"
+          Write-Output "Redeem URL: $($invitation.InviteRedeemUrl)"
+        }
+      env:
+        AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        USER_LIST_PATH: ./path/to/user-list.csv
